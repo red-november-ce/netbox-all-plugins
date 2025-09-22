@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  netbox-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: netbox
+      POSTGRES_USER: netbox
+      POSTGRES_PASSWORD: netbox
+    volumes:
+      - netbox_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netbox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - netbox
+
+  netbox-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "netbox"]
+    environment:
+      REDIS_PASSWORD: netbox
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - netbox
+
+  netbox:
+    image: netbox:4.2.7-all-plugins
+    container_name: netbox
+    environment:
+      - DB_HOST=netbox-db
+      - DB_PORT=5432
+      - DB_NAME=netbox
+      - DB_USER=netbox
+      - DB_PASSWORD=netbox
+      - REDIS_HOST=netbox-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=netbox
+      - SECRET_KEY= #тут надо поставить свой код 
+      - ALLOWED_HOSTS=*
+      - TZ=Europe/Moscow
+    depends_on:
+      netbox-db:
+        condition: service_healthy
+      netbox-redis:
+        condition: service_healthy
+    volumes:
+      - ./config/plugins.py:/etc/netbox/config/plugins.py #внимательно где лежит файл
+    expose:
+      - "8080"
+    networks:
+      - netbox
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro # внимательно указать где лежит конфиг
+      - ./certs:/etc/nginx/certs:ro #надо сгенерировать свои сертификаты
+    depends_on:
+      - netbox
+    networks:
+      - netbox
+
+networks:
+  netbox:
+    driver: bridge
+
+volumes:
+  netbox_db:
