@@ -31,7 +31,7 @@ services:
       - netbox
 
   netbox:
-    image: netbox:4.2.7-all-plugins
+    image: rednovember/netbox:4.2.7-all-plugins
     container_name: netbox
     environment:
       - DB_HOST=netbox-db
